@@ -1,0 +1,276 @@
+{
+  "entities": {
+    "UserPublicProfile": {
+      "title": "UserPublicProfile",
+      "description": "Publicly visible multiplayer trooper identity and aggregate career stats (zero PII).",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID matching the document owner.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Public trooper handle shown in lobbies and matches.",
+          "minLength": 2,
+          "maxLength": 24,
+          "pattern": "^[a-zA-Z0-9_ \\-]+$"
+        },
+        "preferredTeam": {
+          "type": "string",
+          "description": "Preferred faction in Save It arena.",
+          "enum": ["hero", "villain"]
+        },
+        "avatarTag": {
+          "type": "string",
+          "description": "Short 1-16 character emblem label.",
+          "minLength": 1,
+          "maxLength": 16
+        },
+        "matchesPlayed": {
+          "type": "integer",
+          "description": "Total completed online matches."
+        },
+        "wins": {
+          "type": "integer",
+          "description": "Total won online series."
+        },
+        "roundsWon": {
+          "type": "integer",
+          "description": "Total individual rounds won."
+        },
+        "bestScore": {
+          "type": "number",
+          "description": "Highest team territory percentage achieved in an online match (0 to 100)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of profile creation."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of latest update."
+        }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "preferredTeam",
+        "avatarTag",
+        "matchesPlayed",
+        "wins",
+        "roundsWon",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "UserPrivateAccount": {
+      "title": "UserPrivateAccount",
+      "description": "Private owner-only account record containing PII such as email.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID matching the document owner.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "description": "Verified account email address (owner-only).",
+          "minLength": 3,
+          "maxLength": 120
+        },
+        "authProvider": {
+          "type": "string",
+          "description": "Authentication provider identifier.",
+          "enum": ["google", "password"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of account record creation."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of latest account update."
+        }
+      },
+      "required": ["uid", "email", "authProvider", "createdAt", "updatedAt"]
+    },
+    "OnlineLobby": {
+      "title": "OnlineLobby",
+      "description": "Custom friend lobby or public online room hosted on Firebase Firestore.",
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "description": "6-character uppercase alphanumeric invite code matching document ID.",
+          "minLength": 6,
+          "maxLength": 6,
+          "pattern": "^[A-Z0-9]{6}$"
+        },
+        "hostUid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the lobby host.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "hostName": {
+          "type": "string",
+          "description": "Public handle of the lobby host.",
+          "minLength": 2,
+          "maxLength": 24,
+          "pattern": "^[a-zA-Z0-9_ \\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "description": "Custom room title.",
+          "minLength": 2,
+          "maxLength": 40
+        },
+        "mode": {
+          "type": "string",
+          "description": "Team size mode.",
+          "enum": ["1v1", "2v2", "3v3", "4v4"]
+        },
+        "visibility": {
+          "type": "string",
+          "description": "Whether room appears in public quick-match browser or requires invite code.",
+          "enum": ["public", "friends"]
+        },
+        "status": {
+          "type": "string",
+          "description": "Lifecycle status of the room.",
+          "enum": ["waiting", "in_match", "finished"]
+        },
+        "maxPlayers": {
+          "type": "integer",
+          "description": "Total player capacity (2, 4, 6, or 8)."
+        },
+        "memberCount": {
+          "type": "integer",
+          "description": "Current joined human players."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of lobby creation."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of latest lobby state change."
+        }
+      },
+      "required": [
+        "code",
+        "hostUid",
+        "hostName",
+        "title",
+        "mode",
+        "visibility",
+        "status",
+        "maxPlayers",
+        "memberCount",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "LobbyMember": {
+      "title": "LobbyMember",
+      "description": "Player membership and team selection inside a lobby subcollection.",
+      "type": "object",
+      "properties": {
+        "lobbyCode": {
+          "type": "string",
+          "description": "Parent lobby 6-character code.",
+          "minLength": 6,
+          "maxLength": 6,
+          "pattern": "^[A-Z0-9]{6}$"
+        },
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the member.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Public handle of the member.",
+          "minLength": 2,
+          "maxLength": 24,
+          "pattern": "^[a-zA-Z0-9_ \\-]+$"
+        },
+        "team": {
+          "type": "string",
+          "description": "Selected elemental team.",
+          "enum": ["hero", "villain"]
+        },
+        "ready": {
+          "type": "boolean",
+          "description": "Whether the player is ready to deploy."
+        },
+        "isHost": {
+          "type": "boolean",
+          "description": "Whether this member created the room."
+        },
+        "joinedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when player joined the lobby."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of latest member update."
+        }
+      },
+      "required": [
+        "lobbyCode",
+        "uid",
+        "displayName",
+        "team",
+        "ready",
+        "isHost",
+        "joinedAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/public/{docId}": {
+      "schema": {
+        "$ref": "#/entities/UserPublicProfile"
+      },
+      "description": "Public trooper profile document at docId='profile' (no PII)."
+    },
+    "/users/{userId}/private/{docId}": {
+      "schema": {
+        "$ref": "#/entities/UserPrivateAccount"
+      },
+      "description": "Owner-only private account PII document at docId='account'."
+    },
+    "/lobbies/{lobbyId}": {
+      "schema": {
+        "$ref": "#/entities/OnlineLobby"
+      },
+      "description": "Active online rooms and custom friend lobbies keyed by 6-char room code."
+    },
+    "/lobbies/{lobbyId}/members/{memberUid}": {
+      "schema": {
+        "$ref": "#/entities/LobbyMember"
+      },
+      "description": "Subcollection of players inside a given lobby."
+    }
+  }
+}

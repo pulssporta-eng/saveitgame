@@ -1,0 +1,8 @@
+{
+  "name": "SAVE IT",
+  "description": "A hyper-realistic 3D battle arena featuring procedurally generated terrain, dynamic PBR lighting, and a polished floating island aesthetic.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

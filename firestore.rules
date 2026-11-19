@@ -1,0 +1,331 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Pillar 0: Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Pillar 3: Reusable hardened primitives
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidLobbyCode(code) {
+      return code is string && code.size() == 6 && code.matches('^[A-Z0-9]{6}$');
+    }
+
+    function isValidDisplayName(name) {
+      return name is string && name.size() >= 2 && name.size() <= 24 && name.matches('^[a-zA-Z0-9_ \\-]+$');
+    }
+
+    function isValidTeam(team) {
+      return team in ['hero', 'villain'];
+    }
+
+    function isValidMode(mode) {
+      return mode in ['1v1', '2v2', '3v3', '4v4'];
+    }
+
+    function expectedMaxPlayers(mode) {
+      return mode == '1v1' ? 2 : (mode == '2v2' ? 4 : (mode == '3v3' ? 6 : 8));
+    }
+
+    // Pillar 2: Entity Validation Blueprints
+    function isValidUserPublicProfile(data, userId) {
+      return data.keys().hasAll([
+        'uid',
+        'displayName',
+        'preferredTeam',
+        'avatarTag',
+        'matchesPlayed',
+        'wins',
+        'roundsWon',
+        'createdAt',
+        'updatedAt'
+      ])
+      && data.keys().hasOnly([
+        'uid',
+        'displayName',
+        'preferredTeam',
+        'avatarTag',
+        'matchesPlayed',
+        'wins',
+        'roundsWon',
+        'bestScore',
+        'createdAt',
+        'updatedAt'
+      ])
+      && data.uid == userId
+      && data.uid == request.auth.uid
+      && isValidId(data.uid)
+      && isValidDisplayName(data.displayName)
+      && isValidTeam(data.preferredTeam)
+      && data.avatarTag is string && data.avatarTag.size() >= 1 && data.avatarTag.size() <= 16
+      && data.matchesPlayed is int && data.matchesPlayed >= 0 && data.matchesPlayed <= 1000000
+      && data.wins is int && data.wins >= 0 && data.wins <= data.matchesPlayed
+      && data.roundsWon is int && data.roundsWon >= 0 && data.roundsWon <= 5000000
+      && (!('bestScore' in data) || (data.bestScore is number && data.bestScore >= 0 && data.bestScore <= 100))
+      && data.createdAt is timestamp
+      && data.updatedAt is timestamp;
+    }
+
+    function isValidUserPrivateAccount(data, userId) {
+      return data.keys().hasAll(['uid', 'email', 'authProvider', 'createdAt', 'updatedAt'])
+      && data.keys().hasOnly(['uid', 'email', 'authProvider', 'createdAt', 'updatedAt'])
+      && data.uid == userId
+      && data.uid == request.auth.uid
+      && isValidId(data.uid)
+      && data.email is string && data.email.size() >= 3 && data.email.size() <= 120
+      && data.authProvider in ['google', 'password']
+      && data.createdAt is timestamp
+      && data.updatedAt is timestamp;
+    }
+
+    function isValidOnlineLobby(data, lobbyId) {
+      return data.keys().hasAll([
+        'code',
+        'hostUid',
+        'hostName',
+        'title',
+        'mode',
+        'visibility',
+        'status',
+        'maxPlayers',
+        'memberCount',
+        'createdAt',
+        'updatedAt'
+      ])
+      && data.keys().hasOnly([
+        'code',
+        'hostUid',
+        'hostName',
+        'title',
+        'mode',
+        'visibility',
+        'status',
+        'maxPlayers',
+        'memberCount',
+        'createdAt',
+        'updatedAt'
+      ])
+      && data.code == lobbyId
+      && isValidLobbyCode(data.code)
+      && isValidId(data.hostUid)
+      && isValidDisplayName(data.hostName)
+      && data.title is string && data.title.size() >= 2 && data.title.size() <= 40
+      && isValidMode(data.mode)
+      && data.visibility in ['public', 'friends']
+      && data.status in ['waiting', 'in_match', 'finished']
+      && data.maxPlayers is int && data.maxPlayers == expectedMaxPlayers(data.mode)
+      && data.memberCount is int && data.memberCount >= 0 && data.memberCount <= data.maxPlayers
+      && data.createdAt is timestamp
+      && data.updatedAt is timestamp;
+    }
+
+    function isValidLobbyMember(data, lobbyId, memberUid) {
+      return data.keys().hasAll([
+        'lobbyCode',
+        'uid',
+        'displayName',
+        'team',
+        'ready',
+        'isHost',
+        'joinedAt',
+        'updatedAt'
+      ])
+      && data.keys().hasOnly([
+        'lobbyCode',
+        'uid',
+        'displayName',
+        'team',
+        'ready',
+        'isHost',
+        'joinedAt',
+        'updatedAt'
+      ])
+      && data.lobbyCode == lobbyId
+      && isValidLobbyCode(data.lobbyCode)
+      && data.uid == memberUid
+      && data.uid == request.auth.uid
+      && isValidId(data.uid)
+      && isValidDisplayName(data.displayName)
+      && isValidTeam(data.team)
+      && data.ready is bool
+      && data.isHost is bool
+      && data.joinedAt is timestamp
+      && data.updatedAt is timestamp;
+    }
+
+    // Pillar 6: Split Collection PII Isolation
+    match /users/{userId}/public/{docId} {
+      allow get: if isSignedIn() && isValidId(userId) && docId == 'profile';
+      allow list: if false;
+      allow create: if isVerifiedUser()
+        && isOwner(userId)
+        && isValidId(userId)
+        && docId == 'profile'
+        && isValidUserPublicProfile(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser()
+        && isOwner(userId)
+        && isValidId(userId)
+        && docId == 'profile'
+        && isValidUserPublicProfile(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'displayName',
+          'preferredTeam',
+          'avatarTag',
+          'matchesPlayed',
+          'wins',
+          'roundsWon',
+          'bestScore',
+          'updatedAt'
+        ]);
+      allow delete: if false;
+    }
+
+    match /users/{userId}/private/{docId} {
+      allow get: if isOwner(userId) && isValidId(userId) && docId == 'account';
+      allow list: if false;
+      allow create: if isVerifiedUser()
+        && isOwner(userId)
+        && isValidId(userId)
+        && docId == 'account'
+        && isValidUserPrivateAccount(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser()
+        && isOwner(userId)
+        && isValidId(userId)
+        && docId == 'account'
+        && isValidUserPrivateAccount(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'email',
+          'authProvider',
+          'updatedAt'
+        ]);
+      allow delete: if false;
+    }
+
+    // Online Matchmaking Rooms & Custom Friend Lobbies
+    match /lobbies/{lobbyId} {
+      allow get: if isSignedIn() && isValidLobbyCode(lobbyId);
+      // Pillar 8: Secure List Queries - only public lobbies or lobbies hosted by caller
+      allow list: if isSignedIn()
+        && (existing().visibility == 'public' || existing().hostUid == request.auth.uid);
+
+      allow create: if isVerifiedUser()
+        && isValidLobbyCode(lobbyId)
+        && isValidOnlineLobby(incoming(), lobbyId)
+        && incoming().hostUid == request.auth.uid
+        && incoming().status == 'waiting'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedUser()
+        && isValidLobbyCode(lobbyId)
+        && isValidOnlineLobby(incoming(), lobbyId)
+        && existing().status != 'finished'
+        && incoming().code == existing().code
+        && incoming().hostUid == existing().hostUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action 1 (Host): Update room config, status, or member count
+          (existing().hostUid == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'title',
+              'mode',
+              'visibility',
+              'status',
+              'maxPlayers',
+              'memberCount',
+              'updatedAt'
+            ]))
+          ||
+          // Action 2 (Member): Adjust memberCount +/- 1 when joining or leaving
+          (incoming().diff(existing()).affectedKeys().hasOnly(['memberCount', 'updatedAt'])
+            && incoming().memberCount >= existing().memberCount - 1
+            && incoming().memberCount <= existing().memberCount + 1)
+        );
+
+      allow delete: if isVerifiedUser()
+        && isValidLobbyCode(lobbyId)
+        && existing().hostUid == request.auth.uid;
+
+      // Pillar 1: Master Gate subcollection for lobby players
+      match /members/{memberUid} {
+        allow get: if isSignedIn()
+          && isValidLobbyCode(lobbyId)
+          && isValidId(memberUid)
+          && exists(/databases/$(database)/documents/lobbies/$(lobbyId));
+
+        // Pillar 8: No get()/exists() in allow list; evaluate resource.data directly
+        allow list: if isSignedIn() && existing().lobbyCode == lobbyId;
+
+        allow create: if isVerifiedUser()
+          && isValidLobbyCode(lobbyId)
+          && isValidId(memberUid)
+          && memberUid == request.auth.uid
+          && isValidLobbyMember(incoming(), lobbyId, memberUid)
+          && incoming().joinedAt == request.time
+          && incoming().updatedAt == request.time
+          && exists(/databases/$(database)/documents/lobbies/$(lobbyId))
+          && get(/databases/$(database)/documents/lobbies/$(lobbyId)).data.status != 'finished'
+          && incoming().isHost == (get(/databases/$(database)/documents/lobbies/$(lobbyId)).data.hostUid == request.auth.uid);
+
+        allow update: if isVerifiedUser()
+          && isValidLobbyCode(lobbyId)
+          && isValidId(memberUid)
+          && memberUid == request.auth.uid
+          && isValidLobbyMember(incoming(), lobbyId, memberUid)
+          && incoming().lobbyCode == existing().lobbyCode
+          && incoming().uid == existing().uid
+          && incoming().isHost == existing().isHost
+          && incoming().joinedAt == existing().joinedAt
+          && incoming().updatedAt == request.time
+          && exists(/databases/$(database)/documents/lobbies/$(lobbyId))
+          && get(/databases/$(database)/documents/lobbies/$(lobbyId)).data.status != 'finished'
+          && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'team', 'ready', 'updatedAt']);
+
+        allow delete: if isVerifiedUser()
+          && isValidLobbyCode(lobbyId)
+          && isValidId(memberUid)
+          && exists(/databases/$(database)/documents/lobbies/$(lobbyId))
+          && (
+            memberUid == request.auth.uid
+            || get(/databases/$(database)/documents/lobbies/$(lobbyId)).data.hostUid == request.auth.uid
+          );
+      }
+    }
+  }
+}
